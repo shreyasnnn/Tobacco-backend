@@ -1,8 +1,8 @@
-## to run -> uvicorn app:app --reload
-from mangum import Mangum
+#uvicorn app:app --reload
 import os
 import uuid
 from datetime import datetime
+from mangum import Mangum
 import numpy as np
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,8 +10,7 @@ from supabase import create_client, Client
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 import logging
-import requests
-from io import BytesIO
+import tempfile
 
 # ======================
 # LOGGING
@@ -22,21 +21,9 @@ logger = logging.getLogger(__name__)
 # ======================
 # CONFIG
 # ======================
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-BUCKET_NAME = os.getenv("BUCKET_NAME")
-# Load model from Supabase storage (public URL)
-MODEL_URL = os.getenv("MODEL_URL")  # set this in Vercel env vars
-
-try:
-    logger.info("⏳ Downloading model from Supabase...")
-    model_bytes = requests.get(MODEL_URL).content
-    model = load_model(BytesIO(model_bytes))
-    logger.info("✅ Model loaded successfully")
-except Exception as e:
-    logger.error(f"❌ Model loading failed: {e}")
-    raise
-
+SUPABASE_URL = "https://ildeffyvkiaytvktamga.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsZGVmZnl2a2lheXR2a3RhbWdhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTAwNzQ3OCwiZXhwIjoyMDcwNTgzNDc4fQ.NtKHxwReJnGM4p_rE8nLsRgW27snfmngiF5MwCTjUOo"
+BUCKET_NAME = "tobacco_uploads"
 
 # Create Supabase client
 try:
@@ -46,6 +33,13 @@ except Exception as e:
     logger.error(f"❌ Failed to create Supabase client: {e}")
     raise
 
+# Load model
+try:
+    model = load_model("mobilenetv2_tobacco_model.h5")
+    logger.info("✅ Model loaded successfully")
+except Exception as e:
+    logger.error(f"❌ Model loading failed: {e}")
+    raise
 
 app = FastAPI()
 
@@ -74,8 +68,7 @@ async def predict(file: UploadFile = File(...)):
 
         # Save temporarily for model
         filename = f"{uuid.uuid4()}_{file.filename}"
-        os.makedirs("/tmp", exist_ok=True)
-        temp_path = f"/tmp/{filename}"
+        temp_path = os.path.join(tempfile.gettempdir(), filename)
         with open(temp_path, "wb") as f:
             f.write(file_bytes)
 
@@ -166,7 +159,6 @@ async def save_to_history(
     except Exception as e:
         logger.error(f"❌ Save to history error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ======================
 # DEBUGGING ENDPOINTS
